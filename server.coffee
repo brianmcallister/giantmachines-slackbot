@@ -33,9 +33,6 @@ console.log 'connected to Harvest as', process.env.HARVEST_EMAIL
 # every whatever interval?
 # job = schedule.scheduleJob '* * * * *', ->
 
-# TODO: figure out how to not have this and pass it along the promise chain
-harvestUsers = null
-
 getHarvestUsers = ->
   request
     url: "https://#{process.env.HARVEST_SUBDOMAIN}.harvestapp.com/people"
@@ -51,8 +48,6 @@ parseUsers = (response) ->
   (user.user for user in response when user.user.is_active)
 
 getWeeklyTimesheets = (users) ->
-  harvestUsers = users
-
   requests = users.map (user) ->
     request
       url: "https://#{process.env.HARVEST_SUBDOMAIN}.harvestapp.com/people/#{user.id}/entries"
