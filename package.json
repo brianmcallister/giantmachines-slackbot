@@ -10,6 +10,16 @@
   "license": "ISC",
   "dependencies": {
     "coffee-script": "^1.10.0",
-    "express": "^4.13.3"
+    "continuation-local-storage": "^3.1.4",
+    "dotenv": "^1.2.0",
+    "express": "^4.13.3",
+    "harvest": "^0.1.2",
+    "moment": "^2.10.6",
+    "node-schedule": "^0.2.9",
+    "request-promise": "^1.0.2",
+    "slack-client": "^1.4.1"
+  },
+  "devDependencies": {
+    "bluebird": "^3.0.2"
   }
 }
