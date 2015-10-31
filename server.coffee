@@ -1,105 +1,37 @@
-request = require 'request-promise'
+pp = require './app/pretty-print'
+config = require './config/config'
 schedule = require 'node-schedule'
 Slack = require 'slack-client'
+TimesheetReportGenerator = require './app/timesheet-report-generator'
 moment = require 'moment'
-express = require 'express'
 
-app = express();
-server = app.listen process.env.PORT or 3000, () ->
-  console.log 'listening on port', server.address().port
+# We need to bind to the port provided by Heroku within 60 seconds,
+# or else the app will crash and restart in a loop forever.
+require('./app/web-server').start process.env.PORT or 3000
 
-require('dotenv').load()
+setInterval ->
+  pp moment().date()
+  
+  # Check if today is Friday.
+  if moment().date() is moment().endOf('week').day('Friday').date()
+    pp 'friday'
 
-apiHost = 'https://slack.com/api'
-apiToken = process.env.SLACK_API_TOKEN
+, 1000# * 60 * 60
 
-pp = (thing) ->
-  console.log JSON.stringify thing, null, 2
+return
 
-# Build up timestamps for the Harvest api.
-timesheetStartDay = moment().day('Monday').date()
-timesheetEndDay = moment().day('Friday').date()
-timesheetRange = [timesheetStartDay..timesheetEndDay]
-fromTimesheetTimestamp = moment().day('Monday').format 'YYYYMMDD'
-toTimesheetTimestamp = moment().day('Friday').format 'YYYYMMDD'
+generator = new TimesheetReportGenerator
+  harvestConfig:
+    subdomain: config.harvestSubdomain
+    email: config.harvestEmail
+    password: config.harvestPassword
+
+generator.generate().then (report) ->
+  pp report
+return
 
 # Create the Slack client.
 slack = new Slack apiToken, true, true
-
-console.log 'connected to Harvest as', process.env.HARVEST_EMAIL
-
-# Start a scheduled job.
-# TODO: Need a better way to say 'run this on friday evening'. Just parse date
-# every whatever interval?
-# job = schedule.scheduleJob '* * * * *', ->
-
-getHarvestUsers = ->
-  request
-    url: "https://#{process.env.HARVEST_SUBDOMAIN}.harvestapp.com/people"
-    auth:
-      user: process.env.HARVEST_EMAIL
-      pass: process.env.HARVEST_PASSWORD
-    headers:
-      'Accept': 'application/json'
-      'Content-Type': 'application/json'
-
-parseUsers = (response) ->
-  response = JSON.parse response
-  (user.user for user in response when user.user.is_active)
-
-getWeeklyTimesheets = (users) ->
-  requests = users.map (user) ->
-    request
-      url: "https://#{process.env.HARVEST_SUBDOMAIN}.harvestapp.com/people/#{user.id}/entries"
-      qs:
-        from: fromTimesheetTimestamp
-        to: toTimesheetTimestamp
-      auth:
-        user: process.env.HARVEST_EMAIL
-        pass: process.env.HARVEST_PASSWORD
-      headers:
-        'Accept': 'application/json'
-        'Content-Type': 'application/json'
-    .then (timesheet) ->
-      user: user
-      timesheet: JSON.parse timesheet
-
-  Promise.all(requests)
-
-parseWeeklyTimesheets = (timesheets) ->
-  caughtUsers = []
-
-  timesheets.forEach (timesheet) ->
-    spentDays = []
-    missingDays = []
-
-    for day in timesheet.timesheet
-      spentDay = moment(day.day_entry.spent_at).date()
-
-      if spentDays.indexOf(spentDay) is -1
-        spentDays.push spentDay
-
-    if timesheetRange.length isnt spentDays.length
-      for day in timesheetRange
-        if spentDays.indexOf(day) is -1
-          missingDays.push day
-
-      caughtUsers.push
-        user: timesheet.user
-        missingDays: missingDays
-
-  caughtUsers
-
-notifyDelinquentUsers = (delinquents) ->
-  console.log 'notify', delinquents
-
-getHarvestUsers()
-  .then(parseUsers)
-  .then(getWeeklyTimesheets)
-  .then(parseWeeklyTimesheets)
-  .then(notifyDelinquentUsers)
-  .then ->
-    console.log 'done'
 
 slack.on 'open', ->
   console.log 'connected to', slack.team.name, 'as', slack.self.name
