@@ -2,6 +2,11 @@ request = require 'request-promise'
 schedule = require 'node-schedule'
 Slack = require 'slack-client'
 moment = require 'moment'
+express = require 'express'
+
+app = express();
+server = app.listen process.env.PORT or 3000, () ->
+  console.log 'listening on port', server.address().port
 
 require('dotenv').load()
 
